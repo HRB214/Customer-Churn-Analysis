@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Report: Predicting Customer Churn with AI Insights</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Analytics (Background: Warm Neutral - beige-100, Text: Slate Gray - slate-800, Primary Accent: Steel Blue - sky-700, Secondary Accent: Muted Green - emerald-600) -->
+    <!-- Application Structure Plan: The SPA is organized into four thematic, navigable sections to guide the user from a high-level overview to actionable strategies: 1. Overview & KPIs, 2. Interactive Churn Profile Explorer, 3. Key Driver Analysis, and 4. Business Recommendations. This non-linear, task-oriented structure was chosen over the report's linear format to empower users to explore findings based on their interests (e.g., a marketing manager might focus on profiles, while an executive focuses on KPIs and recommendations), enhancing usability and engagement. The core interaction is the 'Explorer' section, which dynamically links visualizations with textual analysis, allowing for a deeper, self-directed understanding of the data. -->
+    <!-- Visualization & Content Choices: 1. Overall Churn (Report Section 2.3) -> Goal: Inform -> Viz: Donut Chart -> Interaction: Hover for details -> Justification: Immediately communicates the scale of the problem. | 2. Churn by Attribute (Report Section III) -> Goal: Compare/Explore -> Viz: Dynamic Stacked Bar Chart -> Interaction: User selects attribute via buttons, chart and text update -> Justification: Consolidates multiple static charts into one interactive tool, revealing patterns on demand. | 3. Feature Importance (Report Section 7.1) -> Goal: Organize/Prioritize -> Viz: Horizontal Bar Chart -> Interaction: Hover to highlight -> Justification: Clearly ranks the key drivers identified by the model. | 4. Recommendations (Report Section 7.2) -> Goal: Inform/Action -> Viz: Styled HTML Cards + Gemini API integration -> Interaction: Button click to generate new ideas -> Justification: Presents strategic takeaways and allows for AI-powered brainstorming for new retention campaigns. All charts are rendered using Chart.js on Canvas. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f5f4; /* Stone 100 */
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+        }
+        .nav-link.active {
+            color: #0369a1; /* Sky 700 */
+            border-bottom-color: #0369a1; /* Sky 700 */
+        }
+        .kpi-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 450px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 50vh;
+                max-height: 500px;
+            }
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .filter-btn.active {
+            background-color: #0369a1; /* Sky 700 */
+            color: white;
+        }
+        .gemini-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #0369a1;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <h1 class="text-xl md:text-2xl font-bold text-slate-900">Telco Customer Churn Analysis</h1>
+                <nav class="hidden md:flex space-x-6">
+                    <a href="#overview" class="nav-link text-lg font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent pb-1">Overview</a>
+                    <a href="#explorer" class="nav-link text-lg font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent pb-1">Profile Explorer</a>
+                    <a href="#drivers" class="nav-link text-lg font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent pb-1">Key Drivers</a>
+                    <a href="#recommendations" class="nav-link text-lg font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent pb-1">Recommendations</a>
+                </nav>
+                <div class="md:hidden">
+                    <select id="mobile-nav" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                        <option value="overview">Overview</option>
+                        <option value="explorer">Profile Explorer</option>
+                        <option value="drivers">Key Drivers</option>
+                        <option value="recommendations">Recommendations</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        <section id="overview" class="content-section active">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">Project Overview &amp; Key Findings</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto">An interactive summary of the machine learning project to predict and prevent customer churn, highlighting the overall churn rate and the final model's performance.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-semibold text-center mb-4">Overall Customer Churn Rate (26.5%)</h3>
+                    <div class="chart-container h-[300px] md:h-[400px]">
+                        <canvas id="churnDistributionChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-semibold text-center mb-6">Final Model Performance (Gradient Boosting)</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                        <div class="kpi-card bg-slate-50 p-4 rounded-lg border">
+                            <div class="text-3xl font-bold text-sky-700">0.851</div>
+                            <div class="text-sm font-medium text-slate-500 mt-1">ROC AUC Score</div>
+                        </div>
+                        <div class="kpi-card bg-slate-50 p-4 rounded-lg border">
+                            <div class="text-3xl font-bold text-sky-700">79.3%</div>
+                            <div class="text-sm font-medium text-slate-500 mt-1">Accuracy</div>
+                        </div>
+                        <div class="kpi-card bg-slate-50 p-4 rounded-lg border">
+                            <div class="text-3xl font-bold text-sky-700">0.645</div>
+                            <div class="text-sm font-medium text-slate-500 mt-1">F1-Score</div>
+                        </div>
+                        <div class="kpi-card bg-slate-50 p-4 rounded-lg border">
+                            <div class="text-3xl font-bold text-emerald-600">68.5%</div>
+                            <div class="text-sm font-medium text-slate-500 mt-1">Recall</div>
+                        </div>
+                        <div class="kpi-card bg-slate-50 p-4 rounded-lg border">
+                            <div class="text-3xl font-bold text-emerald-600">61.0%</div>
+                            <div class="text-sm font-medium text-slate-500 mt-1">Precision</div>
+                        </div>
+                         <div class="kpi-card bg-slate-50 p-4 rounded-lg border flex flex-col justify-center">
+                            <div class="text-sm font-medium text-slate-500">A strong balance between identifying churners (Recall) and avoiding false alarms (Precision).</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="explorer" class="content-section">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">Who is Churning? An Interactive Explorer</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto">Select a customer attribute to visualize its relationship with churn and see a data-driven insight. This tool helps build a profile of a typical at-risk customer.</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div class="flex flex-wrap justify-center gap-2 mb-6" id="filter-buttons">
+                    <button class="filter-btn active px-4 py-2 text-sm font-medium rounded-md border bg-white hover:bg-slate-100 transition" data-filter="Contract">Contract</button>
+                    <button class="filter-btn px-4 py-2 text-sm font-medium rounded-md border bg-white hover:bg-slate-100 transition" data-filter="InternetService">Internet Service</button>
+                    <button class="filter-btn px-4 py-2 text-sm font-medium rounded-md border bg-white hover:bg-slate-100 transition" data-filter="TechSupport">Tech Support</button>
+                    <button class="filter-btn px-4 py-2 text-sm font-medium rounded-md border bg-white hover:bg-slate-100 transition" data-filter="Demographics">Demographics</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                    <div class="lg:col-span-3">
+                        <div class="chart-container">
+                            <canvas id="explorerChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 flex items-center">
+                        <div class="bg-slate-50 p-6 rounded-lg border">
+                            <h3 class="text-lg font-semibold mb-2 text-sky-800">Key Insight</h3>
+                            <p id="explorerInsight" class="text-slate-700"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="drivers" class="content-section">
+             <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">What Drives Churn?</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto">The machine learning model identified the most influential factors in predicting customer churn. This chart ranks the top 15 drivers, quantifying their importance.</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                 <h3 class="text-xl font-semibold text-center mb-4">Top 15 Most Important Features for Churn Prediction</h3>
+                <div class="chart-container h-[500px] md:h-[600px]">
+                    <canvas id="featureImportanceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="recommendations" class="content-section">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">How to Reduce Churn? Actionable Recommendations</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto">Based on the model's findings, we can formulate specific, data-driven strategies to improve customer retention and address the key pain points driving churn.</p>
+            </div>
+            <div class="space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="kpi-card bg-white p-6 rounded-lg shadow-md border-t-4 border-sky-600">
+                        <h3 class="text-lg font-bold mb-2">1. Incentivize Long-Term Contracts</h3>
+                        <p class="text-sm text-slate-600"><strong class="text-slate-800">Insight:</strong> Month-to-month contracts are the single biggest predictor of churn.</p>
+                        <p class="text-sm text-slate-600 mt-2"><strong class="text-emerald-700">Action:</strong> Launch targeted campaigns offering discounts or perks for customers to upgrade to one or two-year plans, locking in loyalty.</p>
+                    </div>
+                    <div class="kpi-card bg-white p-6 rounded-lg shadow-md border-t-4 border-sky-600">
+                        <h3 class="text-lg font-bold mb-2">2. Enhance Early Customer Onboarding</h3>
+                        <p class="text-sm text-slate-600"><strong class="text-slate-800">Insight:</strong> New customers (low tenure) are the most likely to churn.</p>
+                        <p class="text-sm text-slate-600 mt-2"><strong class="text-emerald-700">Action:</strong> Implement a "First 90 Days" program with proactive check-ins and support to build a strong relationship from the start.</p>
+                    </div>
+                    <div class="kpi-card bg-white p-6 rounded-lg shadow-md border-t-4 border-sky-600">
+                        <h3 class="text-lg font-bold mb-2">3. Bundle & Promote Add-On Services</h3>
+                        <p class="text-sm text-slate-600"><strong class="text-slate-800">Insight:</strong> Lack of services like Tech Support and Online Security is highly correlated with churn.</p>
+                        <p class="text-sm text-slate-600 mt-2"><strong class="text-emerald-700">Action:</strong> Create discounted bundles or offer free trials for these protective services to increase customer investment and perceived value.</p>
+                    </div>
+                    <div class="kpi-card bg-white p-6 rounded-lg shadow-md border-t-4 border-sky-600">
+                        <h3 class="text-lg font-bold mb-2">4. Review Fiber Optic Service & Pricing</h3>
+                        <p class="text-sm text-slate-600"><strong class="text-slate-800">Insight:</strong> Fiber optic customers churn at a higher rate, likely due to higher monthly charges.</p>
+                        <p class="text-sm text-slate-600 mt-2"><strong class="text-emerald-700">Action:</strong> Survey fiber customers to identify pain points (price, reliability) and explore options like new pricing tiers or service improvements.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-purple-600">
+                    <h3 class="text-xl font-bold text-center mb-4">✨ AI-Powered Strategy Generator</h3>
+                    <p class="text-center text-slate-600 max-w-2xl mx-auto mb-6">Go beyond the basics. Click the button to use the Gemini API to brainstorm creative, data-driven retention campaigns based on the key churn drivers.</p>
+                    <div class="text-center">
+                        <button id="gemini-button" class="bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition-all duration-300 transform hover:scale-105">
+                            Generate Creative Retention Ideas
+                        </button>
+                    </div>
+                    <div id="gemini-output" class="mt-6 text-slate-700 space-y-4 max-w-4xl mx-auto"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-white mt-12 border-t">
+        <div class="container mx-auto px-8 py-4 text-center text-slate-500">
+            <p>&copy; 2025 Interactive Report. Generated from Data Science Project.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const data = {
+                overview: {
+                    labels: ['Retained Customers', 'Churned Customers'],
+                    values: [5174, 1869],
+                    churnRate: 26.5
+                },
+                explorer: {
+                    Contract: {
+                        labels: ['Month-to-month', 'One year', 'Two year'],
+                        churn: [1655, 166, 48],
+                        noChurn: [2220, 1307, 1647],
+                        insight: 'The churn rate for customers on a Month-to-month contract is exceptionally high. In contrast, customers on One year or Two year contracts are overwhelmingly loyal, with very low churn rates. This highlights the instability of short-term contracts.'
+                    },
+                    InternetService: {
+                        labels: ['DSL', 'Fiber optic', 'No Internet'],
+                        churn: [459, 1297, 113],
+                        noChurn: [1962, 1799, 1413],
+                        insight: 'Customers with Fiber optic internet churn at a dramatically higher rate than those with DSL. Customers with no internet service have a very low churn rate, suggesting issues with the fiber optic service itself, such as cost or reliability.'
+                    },
+                    TechSupport: {
+                        labels: ['No', 'Yes', 'No internet service'],
+                        churn: [1446, 310, 113],
+                        noChurn: [2027, 1734, 1413],
+                        insight: 'A consistent and critical pattern emerges: Customers who do not subscribe to Tech Support have a much higher churn rate. Conversely, those who subscribe are significantly more loyal, suggesting the service adds tangible value.'
+                    },
+                    Demographics: {
+                        labels: ['Not Senior/No Partner', 'Not Senior/Has Partner', 'Senior/No Partner', 'Senior/Has Partner'],
+                        churn: [963, 563, 259, 84],
+                        noChurn: [1653, 2085, 360, 410],
+                        insight: 'Senior citizens have a substantially higher churn rate than non-seniors. Similarly, customers without a partner are more likely to churn. The combination of being a senior without a partner represents a particularly high-risk segment.'
+                    }
+                },
+                drivers: {
+                    labels: [
+                        'Contract: Month-to-month', 'Tenure', 'Total Charges', 'Internet Service: Fiber optic',
+                        'Monthly Charges', 'Payment Method: E-Check', 'Tech Support: No', 'Online Security: No',
+                        'Contract: Two year', 'Dependents: No', 'Partner: No', 'Online Backup: No',
+                        'Device Protection: No', 'Senior Citizen', 'Paperless Billing: Yes'
+                    ],
+                    values: [0.32, 0.18, 0.09, 0.08, 0.07, 0.05, 0.04, 0.03, 0.02, 0.015, 0.015, 0.01, 0.01, 0.005, 0.005]
+                }
+            };
+
+            const colors = {
+                primary: '#0369a1', // Sky 700
+                secondary: '#059669', // Emerald 600
+                background: '#f5f5f4', // Stone 100
+                text: '#1e293b', // Slate 800
+                churn: '#ef4444', // Red 500
+                noChurn: '#22c55e' // Green 500
+            };
+
+            let explorerChartInstance;
+
+            const createChurnDistributionChart = () => {
+                const ctx = document.getElementById('churnDistributionChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.overview.labels,
+                        datasets: [{
+                            data: data.overview.values,
+                            backgroundColor: [colors.noChurn, colors.churn],
+                            borderColor: colors.background,
+                            borderWidth: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { font: { size: 14 } } },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) { label += ': '; }
+                                        if (context.parsed !== null) {
+                                            const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                            const percentage = (context.parsed / total * 100).toFixed(1) + '%';
+                                            label += `${context.formattedValue} (${percentage})`;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+
+            const createFeatureImportanceChart = () => {
+                const ctx = document.getElementById('featureImportanceChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.drivers.labels,
+                        datasets: [{
+                            label: 'Feature Importance',
+                            data: data.drivers.values,
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { x: { beginAtZero: true, title: { display: true, text: 'Importance Score' } } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            };
+
+            const updateExplorerChart = (filter) => {
+                const chartData = data.explorer[filter];
+                document.getElementById('explorerInsight').textContent = chartData.insight;
+                if (explorerChartInstance) { explorerChartInstance.destroy(); }
+                const ctx = document.getElementById('explorerChart').getContext('2d');
+                explorerChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [{ label: 'Did Not Churn', data: chartData.noChurn, backgroundColor: colors.noChurn, }, { label: 'Churned', data: chartData.churn, backgroundColor: colors.churn, }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { x: { stacked: true, title: { display: true, text: 'Customer Count' } }, y: { stacked: true } },
+                        plugins: { legend: { position: 'bottom' }, title: { display: true, text: `Churn Distribution by ${filter.replace(/([A-Z])/g, ' $1').trim()}`, font: { size: 16 } } }
+                    }
+                });
+            };
+
+            const setupNavigation = () => {
+                const navLinks = document.querySelectorAll('.nav-link');
+                const mobileNav = document.getElementById('mobile-nav');
+                const sections = document.querySelectorAll('.content-section');
+                const setActiveLink = (hash) => {
+                    const id = hash.replace('#', '');
+                    navLinks.forEach(link => { link.classList.toggle('active', link.getAttribute('href') === hash); });
+                    sections.forEach(section => { section.classList.toggle('active', section.id === id); });
+                    if (mobileNav.value !== id) { mobileNav.value = id; }
+                };
+                navLinks.forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const hash = e.target.getAttribute('href');
+                        setActiveLink(hash);
+                        window.history.pushState(null, null, hash);
+                    });
+                });
+                mobileNav.addEventListener('change', (e) => {
+                    const hash = `#${e.target.value}`;
+                    setActiveLink(hash);
+                    window.history.pushState(null, null, hash);
+                });
+                const initialHash = window.location.hash || '#overview';
+                setActiveLink(initialHash);
+            };
+
+            const setupExplorer = () => {
+                const filterButtons = document.getElementById('filter-buttons');
+                filterButtons.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'BUTTON') {
+                        const filter = e.target.dataset.filter;
+                        filterButtons.querySelector('.active').classList.remove('active');
+                        e.target.classList.add('active');
+                        updateExplorerChart(filter);
+                    }
+                });
+                updateExplorerChart('Contract');
+            };
+
+            const callGeminiAPI = async (prompt, retries = 3, delay = 1000) => {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                            return result.candidates[0].content.parts[0].text;
+                        } else {
+                            throw new Error("Invalid response structure from Gemini API");
+                        }
+                    } catch (error) {
+                        if (i === retries - 1) {
+                            throw error;
+                        }
+                        await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                    }
+                }
+            };
+            
+            const handleGeminiRequest = async () => {
+                const outputDiv = document.getElementById('gemini-output');
+                const button = document.getElementById('gemini-button');
+                
+                outputDiv.innerHTML = '<div class="flex justify-center"><div class="gemini-spinner"></div></div>';
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+
+                const topDrivers = data.drivers.labels.slice(0, 8).join(', ');
+                const prompt = `
+                    You are a senior marketing strategist for a telecommunications company tasked with reducing customer churn.
+                    Our data science model has identified the following as the top drivers of customer churn: ${topDrivers}.
+
+                    Based ONLY on these key drivers, generate 3 creative and actionable marketing campaign ideas to reduce churn.
+                    For each idea, provide a catchy name, a clear target audience, and a brief, compelling description of the campaign.
+                    Format the response in simple markdown, with each campaign as a numbered list item.
+                `;
+
+                try {
+                    const responseText = await callGeminiAPI(prompt);
+                    const formattedHtml = responseText
+                        .replace(/^\d+\.\s*\*\*(.*?)\*\*/gm, '<h3>$1</h3>')
+                        .replace(/\*\*(.*?):\*\*/g, '<strong class="font-semibold text-slate-800">$1:</strong>')
+                        .split('\n').map(line => line.trim() ? `<p>${line}</p>` : '').join('')
+                        .replace(/<p><h3/g, '<h3').replace(/<\/h3><\/p>/g, '</h3>')
+                        .replace(/<\/p><p>/g, '</p><p class="mt-2">');
+                    
+                    outputDiv.innerHTML = `<div class="bg-slate-50 p-6 rounded-lg border">${formattedHtml}</div>`;
+                } catch (error) {
+                    outputDiv.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert"><strong class="font-bold">Error:</strong><span class="block sm:inline"> Could not generate recommendations. Please try again later.</span></div>`;
+                } finally {
+                    button.disabled = false;
+                    button.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            };
+
+            document.getElementById('gemini-button').addEventListener('click', handleGeminiRequest);
+
+            createChurnDistributionChart();
+            createFeatureImportanceChart();
+            setupNavigation();
+            setupExplorer();
+        });
+    </script>
+</body>
+</html>
