@@ -14,9 +14,6 @@ AI-Powered Insights: Integrates the Gemini API to brainstorm and generate creati
 
 Detailed Report: The README.md file serves as a comprehensive project report, detailing each step of the process, the methodology, and actionable business recommendations.
 
-Live Demo
-🚀 Explore the interactive dashboard here: [your-github-pages-link]
-
 Tech Stack
 Analysis: Python, Pandas, Matplotlib, Seaborn, Scikit-learn, Imblearn
 
